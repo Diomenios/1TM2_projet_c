@@ -5,25 +5,24 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
-  Classe principal du projet
-*/
-
+/******************************************************************************
+*                                                                             *
+*         AUTHORS : Louis Arys, Matthew Everard, François Charlier            *                                                                 *
+*                                                                             *
+*******************************************************************************/
 int main(int argc, char *argv[]){
 
   int fd[2];
 
   pid_t cpid;
-  char reading_buffer[100];
-  char buf;
 
-  //initialisation du pipe + gestion des possible erreurs
   if (pipe(fd) == -1) {
+    //pipe initialisation + management of the possible errors
     perror("pipe");
     exit(EXIT_FAILURE); //or exit(1)
   }
 
-  //execution du fork + gestion des possibles erreurs
+  //fork execution + management of the possible errors
   cpid = fork();
 
   if(cpid == -1){
@@ -33,57 +32,39 @@ int main(int argc, char *argv[]){
 
   //child process
   if (cpid == 0) {
-    close(fd[1]) ; //close the write end of the pipe
+    close(fd[0]) ; //close the read end of the pipe
 
-    read(fd[0], &reading_buffer, 100);
+    /*
+    * Put the write end of the pipe at the standart output
+    * Put the write end of the pipe at the standart error output
+    */
+    dup2(fd[1], 1);
+    dup2(fd[1], 2);
 
-    printf("j'ai lu : %s\n", reading_buffer);
+    close(fd[1]); //close the write end o the pipe
 
-    close(fd[0]);
+    execvp(argv[1], &argv[1]); // execute the command pass in argument
 
-    //write in the Console Line the message
-    printf("%s %s\n", "the buffer contains : " ,reading_buffer);
-
-    char *childTable[argc][20];
-    int incr = 0;
-    for (char *table = strtok(reading_buffer, " "); table != NULL; table = strtok(NULL, " ")) {
-      *childTable[incr] = table;
-      incr++;
-      printf("tour de clivage : %d\n", incr);
-    }
-
-    printf("argc = %d\n", argc);
-
-    *childTable[argc-1] = NULL;
-
-    for (int i = 0; i < argc-1 ; i++) {
-      printf("%d :%s\n", i+1 ,*childTable[i]);
-    }
-
-    execvp(*childTable[0], *childTable);
   }
 
   //parent process
   else{
-    close(fd[0]) ; //close the read end of the pipe
 
-    char message[100] = "";
-    int lenght = 0;
+    close(fd[1]) ; //close the read end of the pipe
 
-    for (int i = 1; i < argc-1; i++) {
-      strcat(message, argv[i]);
-      strcat(message, " ");
+    char reading_buffer[20]=""; //declaration of reading buffer
 
-      lenght+= sizeof(argv[i]) + 1;
-
+    /*
+    * Read the pipe while data is write inside
+    * Write the data read in the stdout of the father process
+    */
+    while (read(fd[0], reading_buffer, sizeof(reading_buffer)) !=0) {
+      write(1, reading_buffer, sizeof(reading_buffer));
     }
-    strcat(message, argv[argc-1]);
-    lenght+= sizeof(argv[argc-1]);
 
-    //write the pipe and save the information into reading_buffer
-    write(fd[1], message, lenght);
 
-    close(fd[1]);
-    exit(EXIT_SUCCESS);
+    close(fd[0]);  //close the reading end of the pipe
+
+    exit(EXIT_SUCCESS); //exit the program with true output
   }
 }
